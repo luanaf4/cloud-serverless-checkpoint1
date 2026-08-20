@@ -1,0 +1,15 @@
+{
+  "name": "cloud-serverless-checkpoint1",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Funcao HTTP serverless para AWS Lambda",
+  "main": "index.js",
+  "scripts": {
+    "start": "node local.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {}
+}
