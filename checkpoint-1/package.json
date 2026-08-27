@@ -1,15 +1,15 @@
 {
-  "name": "cloud-serverless-checkpoint2",
+  "name": "cloud-serverless-checkpoint1",
   "version": "1.0.0",
   "private": true,
-  "description": "Funcao serverless orientada a eventos com AWS Lambda e Amazon SNS",
+  "description": "Funcao HTTP serverless para AWS Lambda",
   "main": "index.js",
   "scripts": {
     "start": "node local.js",
     "test": "node --test"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=18"
   },
   "dependencies": {}
 }

@@ -1,14 +1,33 @@
-const http = require('node:http');
+'use strict';
+
 const {handler} = require('./index');
 
-const port = Number(process.env.PORT || 8080);
+const event = {
+  Records: [
+    {
+      EventSource: 'aws:sns',
+      EventSubscriptionArn:
+        'arn:aws:sns:us-east-1:000000000000:orders:local-subscription',
+      Sns: {
+        Message: JSON.stringify({
+          orderId: 'order-local-001',
+          product: 'Notebook',
+          quantity: 1,
+        }),
+        MessageId: 'local-message-001',
+        TopicArn: 'arn:aws:sns:us-east-1:000000000000:orders',
+        Timestamp: new Date().toISOString(),
+      },
+    },
+  ],
+};
 
-const server = http.createServer(async (_req, res) => {
-  const response = await handler();
-  res.writeHead(response.statusCode, response.headers);
-  res.end(response.body);
-});
-
-server.listen(port, () => {
-  console.log(`Function available at http://localhost:${port}`);
-});
+handler(event)
+  .then((result) => {
+    console.log('Local invocation result:');
+    console.log(JSON.stringify(result, null, 2));
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
