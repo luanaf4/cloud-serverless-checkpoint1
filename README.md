@@ -156,6 +156,6 @@ Depois, abra os logs da funcao no CloudWatch e confirme uma entrada com:
 
 Não publicar no README a URL pública de invocação da função. Esta implementação não possui Function URL; a invocação ocorre pelo tópico privado `orders`.
 
-## Licenca
+## Licença
 
 Projeto desenvolvido para fins educacionais.
