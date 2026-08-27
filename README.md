@@ -1,64 +1,60 @@
-# Checkpoint 2 - Evolução de Função Serverless com AWS Lambda e Amazon SNS
+# Checkpoint 2 - Função Serverless Orientada a Eventos
 
-## Descrição
+Este projeto evolui a função HTTP do Checkpoint 1 para uma arquitetura orientada a eventos. A função AWS Lambda `serverless-checkpoint2` é executada automaticamente quando uma nova mensagem é publicada no tópico Amazon SNS `orders`.
 
-Este repositório apresenta a evolução de uma função serverless desenvolvida em Node.js e implantada na Amazon Web Services (AWS).
+> **Mapeamento para o enunciado:** o enunciado apresenta Google Cloud Pub/Sub como exemplo. Nesta entrega foi utilizada a alternativa AWS permitida na atividade: **Amazon SNS** como serviço de publicação/assinatura, com Lambda como consumidor e CloudWatch como observabilidade.
 
-No **Checkpoint 1**, a solução consistia em uma função AWS Lambda acionada diretamente por uma requisição HTTP. O cliente enviava a requisição para um endpoint público e recebia uma resposta no mesmo fluxo.
-
-No **Checkpoint 2**, a solução foi evoluída para uma arquitetura orientada a eventos. Um produtor publica uma mensagem JSON no tópico Amazon SNS `orders`, o SNS aciona a função AWS Lambda `serverless-checkpoint2` e o resultado do processamento é registrado no Amazon CloudWatch Logs.
-
-## Evolução do Checkpoint 1 para o Checkpoint 2
+## Diferenca entre os checkpoints
 
 | Checkpoint 1 | Checkpoint 2 |
 | --- | --- |
-| Função acionada por requisição HTTP | Função acionada por evento do Amazon SNS |
-| Comunicação síncrona no modelo requisição/resposta | Comunicação assíncrona no modelo publicação/assinatura |
-| Endpoint HTTP público | Gatilho privado do SNS, sem Function URL pública |
-| Processamento iniciado diretamente pelo cliente | Processamento iniciado pela publicação de uma mensagem |
+| Lambda acionada diretamente por uma requisicao HTTP | Lambda acionada por um evento do Amazon SNS |
+| Entrada e resposta HTTP | Mensagem publicada no topico `orders` |
+| Endpoint publico | Gatilho privado, sem Function URL |
+| Processamento sob demanda do cliente | Processamento assíncrono orientado a eventos |
 
-O código do Checkpoint 1 foi preservado no diretório `checkpoint-1/`. Os arquivos localizados na raiz do repositório correspondem à implementação do Checkpoint 2.
+O Checkpoint 2 mantém a funcao serverless, mas troca o modelo request/response por publisher/subscriber: um produtor publica um pedido no SNS e a Lambda reage automaticamente.
 
-## Provedor Utilizado
+## Provedor utilizado
 
 - Amazon Web Services (AWS)
 - AWS Lambda
-- Amazon Simple Notification Service (Amazon SNS)
+- Amazon Simple Notification Service (SNS)
 - Amazon CloudWatch Logs
+- Node.js 20 ou superior (o laboratório utilizou Node.js 24.x)
 
-## Arquitetura do Checkpoint 2
+## Arquitetura
 
 ```text
-Produtor -> Amazon SNS (tópico "orders") -> AWS Lambda -> CloudWatch Logs
+Produtor -> topico SNS "orders" -> AWS Lambda -> CloudWatch Logs
 ```
 
-A função Lambda utiliza o handler `index.handler`, processa eventos recebidos do SNS, valida a presença do campo `orderId` e gera logs estruturados com o resultado. A solução não expõe uma Function URL pública.
+A funcao possui um gatilho privado gerenciado pela AWS. Ela nao expoe uma Function URL publica e nao recebe pedidos por HTTP.
 
-## Estrutura do Repositório
+## Estrutura
 
 ```text
 .
-├── checkpoint-1/        # implementação HTTP do Checkpoint 1
-├── CHECKPOINTS.md       # resumo da evolução entre os checkpoints
-├── index.js             # handler SNS do Checkpoint 2
-├── index.test.js        # testes automatizados
-├── local.js             # simulação local de um evento SNS
+├── .gitignore
+├── index.js
+├── index.test.js
+├── local.js
 ├── package-lock.json
 ├── package.json
 └── README.md
 ```
 
-## Como Rodar Localmente
+## Como rodar localmente
 
-### Pré-requisitos
+### Pre-requisitos
 
-- Node.js instalado, versão 20 ou superior
+- Node.js 20 ou superior
 - npm
 - Terminal de comandos aberto
 
-### Passo a Passo
+### Passo a passo
 
-1. Clone o repositório para sua máquina:
+1. Clone o repositorio:
 
    ```bash
    git clone https://github.com/luanaf4/cloud-serverless-checkpoint1.git
@@ -70,66 +66,60 @@ A função Lambda utiliza o handler `index.handler`, processa eventos recebidos 
    cd cloud-serverless-checkpoint1
    ```
 
-3. Instale as dependências do projeto:
+3. Instale as dependencias:
 
    ```bash
    npm install
    ```
 
-4. Execute a simulação local do evento SNS:
+4. Simule localmente um evento do Amazon SNS:
 
    ```bash
    npm start
    ```
 
-O comando cria um evento SNS de exemplo somente em memória e chama o mesmo handler utilizado pela AWS Lambda. Nenhum recurso da AWS é acessado durante a execução local.
+O terminal exibira um log estruturado contendo o `orderId`, o `messageId` e o status do processamento. O arquivo `local.js` cria somente um evento de exemplo em memoria; ele nao acessa a AWS.
 
-### Resultado Esperado
+## Testes automatizados
 
-O terminal apresenta um log estruturado com o identificador do pedido, o identificador da mensagem e o status do processamento:
-
-```json
-{
-  "severity": "INFO",
-  "message": "Order processed successfully.",
-  "status": "processed",
-  "orderId": "order-local-001",
-  "messageId": "local-message-001"
-}
-```
-
-## Testes Automatizados
-
-Execute os testes com:
+Execute:
 
 ```bash
 npm test
 ```
 
-Os testes verificam:
+Os testes validam a leitura do evento SNS, o processamento de varios registros, o handler da Lambda e a rejeicao de mensagens invalidas.
 
-- leitura e validação do evento do Amazon SNS;
-- processamento de um ou vários registros;
-- exportação do handler esperado pela AWS Lambda;
-- geração de logs estruturados;
-- rejeição de eventos e mensagens inválidas.
+## Implantacao na AWS
 
-## Configuração na AWS
+Os passos abaixo utilizam a regiao `us-east-1`, a mesma adotada no Checkpoint 1.
 
-A solução do Checkpoint 2 utiliza a seguinte configuração:
+1. No Amazon SNS, crie um topico do tipo **Standard** com o nome `orders`.
 
-- função Lambda: `serverless-checkpoint2`;
-- runtime: Node.js 24.x;
-- arquitetura: `x86_64`;
-- handler: `index.handler`;
-- tópico SNS: `orders`;
-- região: `us-east-1`;
-- gatilho: Amazon SNS;
-- Function URL pública: não configurada.
+2. No AWS Lambda, crie uma funcao com estas configuracoes:
 
-## Validação na Nuvem
+   - Nome: `serverless-checkpoint2`
+   - Runtime: Node.js 20 ou superior
+   - Arquitetura: `x86_64`
+   - Funcao de execucao: uma role permitida pelo laboratorio AWS Academy
 
-Para validar a solução implantada, publique uma mensagem no tópico SNS `orders` com um corpo JSON semelhante ao exemplo:
+3. Envie o arquivo `index.js` pelo editor da Lambda ou por um pacote `.zip`.
+
+4. Confirme o handler do pacote local:
+
+   ```text
+   index.handler
+   ```
+
+   No pacote implantado pelo laboratório, o arquivo pode aparecer como `index.mjs`; nesse caso, mantenha o mesmo ponto de entrada `index.handler`.
+
+5. Adicione o Amazon SNS como gatilho e selecione o topico `orders`.
+
+6. Nao crie uma Function URL. A invocacao deve acontecer exclusivamente pelo topico SNS.
+
+## Teste na nuvem
+
+No topico `orders`, escolha **Publish message** e use este conteudo no corpo da mensagem:
 
 ```json
 {
@@ -139,19 +129,33 @@ Para validar a solução implantada, publique uma mensagem no tópico SNS `order
 }
 ```
 
-O SNS entrega o evento à Lambda. O resultado do processamento pode ser verificado nos logs da função no Amazon CloudWatch.
+Depois, abra os logs da funcao no CloudWatch e confirme uma entrada com:
 
-## Segurança
+```json
+{
+  "severity": "INFO",
+  "message": "Order processed successfully.",
+  "status": "processed",
+  "orderId": "order-001"
+}
+```
 
-Este repositório não contém:
+## Seguranca
 
-- credenciais ou chaves de acesso da AWS;
-- ARN ou identificador real da conta AWS;
-- arquivos confidenciais do laboratório;
-- Function URL ou outro endpoint público da função implantada.
+- Nenhuma credencial, chave de servico ou arquivo confidencial deve ser versionado.
+- O arquivo `.gitignore` bloqueia formatos comuns de credenciais e pacotes de implantacao.
+- A funcao e acionada pelo SNS e nao aceita chamadas HTTP publicas.
+- O ARN, o identificador da conta e o endereco da funcao implantada nao sao armazenados neste repositorio.
+- Qualquer identificacao ou endereco da funcao solicitada na entrega deve ser enviado somente nos comentarios do Canvas.
 
-Os identificadores presentes no simulador e nos testes são fictícios e utilizados exclusivamente para representar o formato de um evento SNS.
+## Entrega no Canvas
 
-## Licença
+- Campo de URL: link do repositório público do GitHub, contendo este README e o código-fonte.
+- Comentários/caixa de texto: URL ou identificação privada da função ativa na nuvem, conforme solicitado pelo professor.
+- Anexos opcionais: evidência do CloudWatch, resultado do teste da Lambda e transcript em texto.
+
+Não publicar no README a URL pública de invocação da função. Esta implementação não possui Function URL; a invocação ocorre pelo tópico privado `orders`.
+
+## Licenca
 
 Projeto desenvolvido para fins educacionais.
