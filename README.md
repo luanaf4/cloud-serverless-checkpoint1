@@ -2,7 +2,6 @@
 
 Este projeto evolui a função HTTP do Checkpoint 1 para uma arquitetura orientada a eventos. A função AWS Lambda `serverless-checkpoint2` é executada automaticamente quando uma nova mensagem é publicada no tópico Amazon SNS `orders`.
 
-> **Mapeamento para o enunciado:** o enunciado apresenta Google Cloud Pub/Sub como exemplo. Nesta entrega foi utilizada a alternativa AWS permitida na atividade: **Amazon SNS** como serviço de publicação/assinatura, com Lambda como consumidor e CloudWatch como observabilidade.
 
 ## Diferenca entre os checkpoints
 
@@ -148,14 +147,7 @@ Depois, abra os logs da funcao no CloudWatch e confirme uma entrada com:
 - O ARN, o identificador da conta e o endereco da funcao implantada nao sao armazenados neste repositorio.
 - Qualquer identificacao ou endereco da funcao solicitada na entrega deve ser enviado somente nos comentarios do Canvas.
 
-## Entrega no Canvas
 
-- Campo de URL: link do repositório público do GitHub, contendo este README e o código-fonte.
-- Comentários/caixa de texto: URL ou identificação privada da função ativa na nuvem, conforme solicitado pelo professor.
-- Anexos opcionais: evidência do CloudWatch, resultado do teste da Lambda e transcript em texto.
-
-Não publicar no README a URL pública de invocação da função. Esta implementação não possui Function URL; a invocação ocorre pelo tópico privado `orders`.
-
-## Licença
+## Licenca
 
 Projeto desenvolvido para fins educacionais.
