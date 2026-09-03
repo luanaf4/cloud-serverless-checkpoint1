@@ -1,0 +1,6 @@
+{
+  "orderId": "order-checkpoint3-001",
+  "idempotencyKey": "order-checkpoint3-001",
+  "product": "Notebook",
+  "quantity": 1
+}
