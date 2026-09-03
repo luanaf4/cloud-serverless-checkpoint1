@@ -1,0 +1,107 @@
+{
+  "Comment": "Checkpoint 3 order orchestration with idempotency, retry and a dead-letter destination",
+  "StartAt": "ValidateInput",
+  "States": {
+    "ValidateInput": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            {"Variable": "$.orderId", "IsPresent": true},
+            {"Variable": "$.orderId", "IsString": true},
+            {"Variable": "$.idempotencyKey", "IsPresent": true},
+            {"Variable": "$.idempotencyKey", "IsString": true}
+          ],
+          "Next": "ValidateIdempotencyKey"
+        }
+      ],
+      "Default": "InvalidInput"
+    },
+    "ValidateIdempotencyKey": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.idempotencyKey",
+          "StringEqualsPath": "$.orderId",
+          "Next": "ProcessOrder"
+        }
+      ],
+      "Default": "InvalidInput"
+    },
+    "ProcessOrder": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${PROCESS_ORDER_FUNCTION_ARN}",
+        "Payload": {
+          "Records": [
+            {
+              "EventSource": "aws:sns",
+              "Sns": {
+                "Message.$": "States.JsonToString($)",
+                "MessageId.$": "$.idempotencyKey",
+                "TopicArn": "${ORDERS_TOPIC_ARN}"
+              }
+            }
+          ]
+        }
+      },
+      "ResultSelector": {"result.$": "$.Payload"},
+      "ResultPath": "$.processing",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "PublishDeadLetter"
+        }
+      ],
+      "Next": "OrderProcessed"
+    },
+    "InvalidInput": {
+      "Type": "Pass",
+      "Result": {
+        "Error": "ValidationError",
+        "Cause": "orderId and idempotencyKey are required and must match"
+      },
+      "ResultPath": "$.error",
+      "Next": "PublishDeadLetter"
+    },
+    "PublishDeadLetter": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${DEAD_LETTER_TOPIC_ARN}",
+        "Subject": "Checkpoint 3 order processing failure",
+        "Message.$": "States.JsonToString($)"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["SNS.InternalErrorException", "SNS.ThrottledException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "OrderFailed"
+    },
+    "OrderProcessed": {"Type": "Succeed"},
+    "OrderFailed": {
+      "Type": "Fail",
+      "Error": "OrderProcessingFailed",
+      "Cause": "The order was published to the dead-letter destination"
+    }
+  }
+}
