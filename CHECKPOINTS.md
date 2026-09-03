@@ -2,25 +2,37 @@
 
 ## Checkpoint 1 — HTTP
 
-A primeira versão era uma função AWS Lambda simples, chamada por uma requisição HTTP direta. O cliente precisava conhecer e acessar o endpoint para iniciar o processamento.
+A primeira versão expunha uma função AWS Lambda chamada por uma requisição HTTP direta. O código permanece preservado em `checkpoint-1/`.
 
 ## Checkpoint 2 — Event-driven
 
-Nesta versão, a Lambda `serverless-checkpoint2` não recebe chamadas HTTP. O fluxo agora é:
+O segundo checkpoint substituiu a chamada HTTP por um evento do Amazon SNS:
 
 ```text
 Produtor -> Amazon SNS (orders) -> AWS Lambda -> CloudWatch Logs
 ```
 
-Uma mensagem JSON com `orderId` é publicada no tópico `orders`. O SNS entrega o evento à Lambda, que valida o pedido, registra o processamento no CloudWatch e retorna o resumo da execução.
+O handler em `index.js` valida mensagens SNS, processa múltiplos registros e produz logs estruturados.
+
+## Checkpoint 3 — Orquestração
+
+O terceiro checkpoint adiciona AWS Step Functions para controlar todo o fluxo:
+
+```text
+Entrada -> validação -> regra de idempotência -> Lambda
+                                      |          |
+                                      |          +-> retry
+                                      +--------------> SNS dead-letter destination
+```
 
 ### Mudanças implementadas
 
-- novo handler `index.handler` para eventos SNS;
-- validação do envelope e da mensagem do SNS;
-- processamento de múltiplos registros na mesma invocação;
-- logs estruturados com `orderId` e `messageId`;
-- gatilho privado SNS, sem Function URL pública;
-- testes unitários e simulador local mantidos no repositório.
-
-O código do Checkpoint 2 está nos arquivos `index.js`, `index.test.js` e `local.js`. Nenhuma credencial ou URL privada da AWS deve ser versionada.
+- State Machine Standard definida como código;
+- validação de `orderId` e `idempotencyKey`;
+- idempotência por nome de execução Standard igual ao `orderId`;
+- chamada da Lambda do Checkpoint 2 em ordem controlada;
+- retry com backoff exponencial para falhas transitórias;
+- `Catch` para falhas definitivas;
+- publicação de falhas em tópico SNS dedicado;
+- validador estrutural e testes automatizados;
+- nenhuma credencial ou identificação real da conta no template público.

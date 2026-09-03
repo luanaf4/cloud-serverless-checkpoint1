@@ -1,11 +1,11 @@
 {
-  "name": "cloud-serverless-checkpoint2",
+  "name": "cloud-serverless-checkpoint3",
   "version": "1.0.0",
   "private": true,
-  "description": "Funcao serverless orientada a eventos com AWS Lambda e Amazon SNS",
+  "description": "Orquestracao serverless com AWS Step Functions, idempotencia, retry e DLQ",
   "main": "index.js",
   "scripts": {
-    "start": "node local.js",
+    "start": "node workflow/validate-state-machine.js",
     "test": "node --test"
   },
   "engines": {

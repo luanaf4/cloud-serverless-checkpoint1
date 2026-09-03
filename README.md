@@ -1,40 +1,78 @@
-# Checkpoint 2 - Função Serverless Orientada a Eventos
+# Checkpoint 3 - Orquestração Serverless de Pedidos
 
-Este projeto evolui a função HTTP do Checkpoint 1 para uma arquitetura orientada a eventos. A função AWS Lambda `serverless-checkpoint2` é executada automaticamente quando uma nova mensagem é publicada no tópico Amazon SNS `orders`.
+Este projeto evolui os Checkpoints 1 e 2 para uma orquestração completa de serviços. O fluxo utiliza AWS Step Functions para validar pedidos, chamar a função Lambda na ordem definida, repetir falhas transitórias e encaminhar falhas definitivas para um destino de mensagens mortas.
 
+## Evolução dos checkpoints
 
-## Diferenca entre os checkpoints
+| Checkpoint | Arquitetura | Objetivo |
+| --- | --- | --- |
+| 1 | Cliente → Lambda HTTP | Executar uma função por requisição direta |
+| 2 | SNS `orders` → Lambda → CloudWatch | Processar pedidos de forma assíncrona e orientada a eventos |
+| 3 | Step Functions → Lambda / SNS DLQ | Orquestrar, validar, aplicar idempotência e tratar falhas |
 
-| Checkpoint 1 | Checkpoint 2 |
-| --- | --- |
-| Lambda acionada diretamente por uma requisicao HTTP | Lambda acionada por um evento do Amazon SNS |
-| Entrada e resposta HTTP | Mensagem publicada no topico `orders` |
-| Endpoint publico | Gatilho privado, sem Function URL |
-| Processamento sob demanda do cliente | Processamento assíncrono orientado a eventos |
-
-O Checkpoint 2 mantém a funcao serverless, mas troca o modelo request/response por publisher/subscriber: um produtor publica um pedido no SNS e a Lambda reage automaticamente.
+O código HTTP original permanece em `checkpoint-1/`. O handler orientado a eventos do Checkpoint 2 permanece em `index.js`. A definição do Checkpoint 3 está em `workflow/state-machine.template.json`.
 
 ## Provedor utilizado
 
 - Amazon Web Services (AWS)
+- AWS Step Functions
 - AWS Lambda
-- Amazon Simple Notification Service (SNS)
-- Amazon CloudWatch Logs
-- Node.js 20 ou superior (o laboratório utilizou Node.js 24.x)
+- Amazon SNS
+- Amazon CloudWatch
+- Node.js 20 ou superior
 
 ## Arquitetura
 
 ```text
-Produtor -> topico SNS "orders" -> AWS Lambda -> CloudWatch Logs
+Pedido
+  |
+  v
+AWS Step Functions (Standard)
+  |
+  +--> valida orderId e idempotencyKey
+  |
+  +--> AWS Lambda serverless-checkpoint2
+  |      +--> retry com backoff exponencial
+  |
+  +--> sucesso: OrderProcessed
+  |
+  +--> falha: tópico SNS checkpoint3-orders-dlq
 ```
 
-A funcao possui um gatilho privado gerenciado pela AWS. Ela nao expoe uma Function URL publica e nao recebe pedidos por HTTP.
+## Idempotência
+
+O `orderId` é utilizado como chave de idempotência. O corpo de entrada deve conter `orderId` e `idempotencyKey` com o mesmo valor.
+
+A State Machine é do tipo **Standard**. Ao iniciar uma execução na AWS, use também o `orderId` como nome da execução. A AWS rejeita outra execução Standard com o mesmo nome durante o período de retenção, evitando o processamento duplicado do pedido.
+
+Exemplo:
+
+```json
+{
+  "orderId": "order-checkpoint3-001",
+  "idempotencyKey": "order-checkpoint3-001",
+  "product": "Notebook",
+  "quantity": 1
+}
+```
+
+## Retry e destino de mensagens mortas
+
+A chamada da Lambda repete falhas transitórias até três vezes, com intervalo inicial de dois segundos e `BackoffRate` igual a `2`.
+
+Depois de esgotar as tentativas, o bloco `Catch` encaminha o evento e os detalhes do erro ao tópico SNS dedicado `checkpoint3-orders-dlq`. Entradas inválidas seguem diretamente para o mesmo destino. O tópico funciona como dead-letter destination do pipeline e não possui exposição HTTP pública.
 
 ## Estrutura
 
 ```text
 .
-├── .gitignore
+├── checkpoint-1/
+├── workflow/
+│   ├── example-input.json
+│   ├── state-machine.template.json
+│   ├── state-machine.test.js
+│   └── validate-state-machine.js
+├── CHECKPOINTS.md
 ├── index.js
 ├── index.test.js
 ├── local.js
@@ -45,109 +83,80 @@ A funcao possui um gatilho privado gerenciado pela AWS. Ela nao expoe uma Functi
 
 ## Como rodar localmente
 
-### Pre-requisitos
+### Pré-requisitos
 
 - Node.js 20 ou superior
 - npm
-- Terminal de comandos aberto
+- terminal de comandos aberto
 
 ### Passo a passo
 
-1. Clone o repositorio:
+1. Clone o repositório:
 
    ```bash
    git clone https://github.com/luanaf4/cloud-serverless-checkpoint1.git
    ```
 
-2. Entre na pasta do projeto:
+2. Entre na pasta:
 
    ```bash
    cd cloud-serverless-checkpoint1
    ```
 
-3. Instale as dependencias:
+3. Instale as dependências:
 
    ```bash
    npm install
    ```
 
-4. Simule localmente um evento do Amazon SNS:
+4. Valide localmente a definição da State Machine:
 
    ```bash
    npm start
    ```
 
-O terminal exibira um log estruturado contendo o `orderId`, o `messageId` e o status do processamento. O arquivo `local.js` cria somente um evento de exemplo em memoria; ele nao acessa a AWS.
+5. Execute todos os testes:
 
-## Testes automatizados
-
-Execute:
-
-```bash
-npm test
-```
-
-Os testes validam a leitura do evento SNS, o processamento de varios registros, o handler da Lambda e a rejeicao de mensagens invalidas.
-
-## Implantacao na AWS
-
-Os passos abaixo utilizam a regiao `us-east-1`, a mesma adotada no Checkpoint 1.
-
-1. No Amazon SNS, crie um topico do tipo **Standard** com o nome `orders`.
-
-2. No AWS Lambda, crie uma funcao com estas configuracoes:
-
-   - Nome: `serverless-checkpoint2`
-   - Runtime: Node.js 20 ou superior
-   - Arquitetura: `x86_64`
-   - Funcao de execucao: uma role permitida pelo laboratorio AWS Academy
-
-3. Envie o arquivo `index.js` pelo editor da Lambda ou por um pacote `.zip`.
-
-4. Confirme o handler do pacote local:
-
-   ```text
-   index.handler
+   ```bash
+   npm test
    ```
 
-   No pacote implantado pelo laboratório, o arquivo pode aparecer como `index.mjs`; nesse caso, mantenha o mesmo ponto de entrada `index.handler`.
+O validador local verifica `StartAt`, destinos `Next`, blocos `Catch` e a presença de estados terminais. Os testes também verificam idempotência, retry e encaminhamento de falhas.
 
-5. Adicione o Amazon SNS como gatilho e selecione o topico `orders`.
+## Implantação na AWS
 
-6. Nao crie uma Function URL. A invocacao deve acontecer exclusivamente pelo topico SNS.
+1. Crie uma State Machine **Standard** no AWS Step Functions.
+2. Substitua os marcadores do arquivo `workflow/state-machine.template.json` pelos recursos da conta:
+   - `${PROCESS_ORDER_FUNCTION_ARN}`: ARN da Lambda do Checkpoint 2;
+   - `${ORDERS_TOPIC_ARN}`: ARN do tópico de pedidos;
+   - `${DEAD_LETTER_TOPIC_ARN}`: ARN do destino de mensagens mortas.
+3. Configure uma role que permita `lambda:InvokeFunction` na Lambda indicada e `sns:Publish` somente no tópico de mensagens mortas.
+4. Crie a State Machine.
+5. Inicie a execução usando o mesmo valor de `orderId` como nome da execução e como `idempotencyKey`.
+
+Os ARNs reais e o identificador da conta não são armazenados no repositório público.
 
 ## Teste na nuvem
 
-No topico `orders`, escolha **Publish message** e use este conteudo no corpo da mensagem:
+Use o conteúdo de `workflow/example-input.json` e defina o nome da execução como `order-checkpoint3-001`.
 
-```json
-{
-  "orderId": "order-001",
-  "product": "Notebook",
-  "quantity": 1
-}
-```
+Confirme no histórico da execução:
 
-Depois, abra os logs da funcao no CloudWatch e confirme uma entrada com:
+- `ValidateInput` e `ValidateIdempotencyKey` concluídos;
+- `ProcessOrder` concluído;
+- estado terminal `OrderProcessed`;
+- log estruturado da Lambda no CloudWatch.
 
-```json
-{
-  "severity": "INFO",
-  "message": "Order processed successfully.",
-  "status": "processed",
-  "orderId": "order-001"
-}
-```
+Para validar a rota de falha, envie uma entrada sem `orderId`. A execução deve passar por `InvalidInput`, publicar no tópico de mensagens mortas e terminar em `OrderFailed`.
 
-## Seguranca
+## Segurança
 
-- Nenhuma credencial, chave de servico ou arquivo confidencial deve ser versionado.
-- O arquivo `.gitignore` bloqueia formatos comuns de credenciais e pacotes de implantacao.
-- A funcao e acionada pelo SNS e nao aceita chamadas HTTP publicas.
-- O ARN, o identificador da conta e o endereco da funcao implantada nao sao armazenados neste repositorio.
-- Qualquer identificacao ou endereco da funcao solicitada na entrega deve ser enviado somente nos comentarios do Canvas.
+- Nenhuma credencial, chave, token, `.env` ou arquivo confidencial deve ser versionado.
+- Os identificadores reais da conta são substituídos por marcadores no template.
+- O pipeline não possui URL HTTP pública.
+- A role da State Machine deve aplicar privilégio mínimo para Lambda e SNS.
+- Logs e screenshots não devem revelar credenciais ou tokens de sessão.
 
-
-## Licenca
+## Licença
 
 Projeto desenvolvido para fins educacionais.
