@@ -211,7 +211,7 @@ As evidências visuais ficam em [`docs/evidence/`](docs/evidence/):
 | Código/diagrama do Workflow | [`checkpoint4-workflow-source.png`](docs/evidence/checkpoint4-workflow-source.png) | Definição visual do fluxo, das condições, do retry e da publicação na DLQ. |
 | Assinatura Pub/Sub da DLQ | [`checkpoint4-pubsub-dlq.png`](docs/evidence/checkpoint4-pubsub-dlq.png) | Assinatura `orders-gcp-dlq-sub` criada e ativa para receber mensagens de falha. |
 
-O print da assinatura demonstra que a DLQ está ativa; o print da execução inválida demonstra a decisão de encaminhamento. Mensagens e telas de console devem ser capturadas sem e-mail, tokens, chaves ou dados de cobrança.
+O print da assinatura demonstra que a DLQ está ativa; o print da execução inválida demonstra a decisão de encaminhamento.
 
 ### Implantação GCP — roteiro seguro
 
