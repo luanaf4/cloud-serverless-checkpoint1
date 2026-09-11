@@ -1,0 +1,47 @@
+# Template do Checkpoint 4 para Google Cloud Workflows.
+# O Workflow publica no Pub/Sub; a Cloud Run Function consome o tópico.
+main:
+  params: [input]
+  steps:
+    - validate_input:
+        switch:
+          - condition: ${map.get(input, "orderId") != null and map.get(input, "idempotencyKey") != null and map.get(input, "orderId") == map.get(input, "idempotencyKey")}
+            next: process_order
+        next: publish_invalid_input
+    - process_order:
+        try:
+          call: googleapis.pubsub.v1.projects.topics.publish
+          args:
+            topic: ${sys.get_env("ORDERS_TOPIC")}
+            body:
+              messages:
+                - data: ${base64.encode(json.encode(input))}
+                  attributes:
+                    event: "order_received"
+                    correlationId: ${input.idempotencyKey}
+          result: publish_result
+        retry:
+          predicate: ${http.default_retry_predicate}
+          max_retries: 3
+          backoff:
+            initial_delay: 2
+            max_delay: 16
+            multiplier: 2
+        next: order_published
+    - publish_invalid_input:
+        call: googleapis.pubsub.v1.projects.topics.publish
+        args:
+          topic: ${sys.get_env("DEAD_LETTER_TOPIC")}
+          body:
+            messages:
+              - data: ${base64.encode(json.encode(input))}
+                attributes:
+                  event: "invalid_order_input"
+                  correlationId: "unknown"
+        next: invalid_input
+    - invalid_input:
+        raise: "ValidationError: orderId e idempotencyKey devem existir e ser iguais"
+    - order_published:
+        return:
+          status: "published"
+          orderId: ${input.orderId}
