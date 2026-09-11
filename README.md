@@ -198,18 +198,18 @@ Os campos `event`, `metricName`, `orderId`, `correlationId`, `durationMs` e `sev
 
 As evidências visuais ficam em [`docs/evidence/`](docs/evidence/):
 
-| Evidência | Arquivo |
-| --- | --- |
-| Função ativa e íntegra | [`checkpoint4-function-status.png`](docs/evidence/checkpoint4-function-status.png) |
-| Métricas da função | [`checkpoint4-function-metrics.png`](docs/evidence/checkpoint4-function-metrics.png) |
-| Métricas baseadas em logs | [`checkpoint4-log-metrics.png`](docs/evidence/checkpoint4-log-metrics.png) |
-| Log de processamento iniciado | [`checkpoint4-logs-started.png`](docs/evidence/checkpoint4-logs-started.png) |
-| Log estruturado de falha | [`checkpoint4-logs-failed.png`](docs/evidence/checkpoint4-logs-failed.png) |
-| Workflow concluído | [`checkpoint4-workflow-success-summary.png`](docs/evidence/checkpoint4-workflow-success-summary.png) |
-| Workflow concluído e etapas | [`checkpoint4-workflow-success-steps.png`](docs/evidence/checkpoint4-workflow-success-steps.png) |
-| Entrada inválida e rota `invalid_input` | [`checkpoint4-workflow-invalid.png`](docs/evidence/checkpoint4-workflow-invalid.png) |
-| Código/diagrama do Workflow | [`checkpoint4-workflow-source.png`](docs/evidence/checkpoint4-workflow-source.png) |
-| Assinatura Pub/Sub da DLQ | [`checkpoint4-pubsub-dlq.png`](docs/evidence/checkpoint4-pubsub-dlq.png) |
+| Evidência | Arquivo | O que comprova |
+| --- | --- | --- |
+| Função ativa e íntegra | [`checkpoint4-function-status.png`](docs/evidence/checkpoint4-function-status.png) | Serviço `checkpoint4-order-processor` ativo, com tráfego e status operacional normal. |
+| Métricas da função | [`checkpoint4-function-metrics.png`](docs/evidence/checkpoint4-function-metrics.png) | Gráficos de CPU, memória, instâncias, latência e solicitações do Cloud Run. |
+| Métricas baseadas em logs | [`checkpoint4-log-metrics.png`](docs/evidence/checkpoint4-log-metrics.png) | Métricas `orders_started`, `orders_processed` e `orders_failed` criadas no Cloud Monitoring. |
+| Log de processamento iniciado | [`checkpoint4-logs-started.png`](docs/evidence/checkpoint4-logs-started.png) | Registro estruturado do início do processamento, com evento, pedido e métrica associada. |
+| Log estruturado de falha | [`checkpoint4-logs-failed.png`](docs/evidence/checkpoint4-logs-failed.png) | Falha validada no Cloud Logging, incluindo mensagem de erro, severidade e `metricName`. |
+| Workflow concluído | [`checkpoint4-workflow-success-summary.png`](docs/evidence/checkpoint4-workflow-success-summary.png) | Execução válida concluída com status de sucesso e saída publicada. |
+| Workflow concluído e etapas | [`checkpoint4-workflow-success-steps.png`](docs/evidence/checkpoint4-workflow-success-steps.png) | Etapas percorridas pelo Workflow, incluindo validação, retry e publicação. |
+| Entrada inválida e rota `invalid_input` | [`checkpoint4-workflow-invalid.png`](docs/evidence/checkpoint4-workflow-invalid.png) | Tratamento de entrada sem campos obrigatórios e encaminhamento para a rota de falha. |
+| Código/diagrama do Workflow | [`checkpoint4-workflow-source.png`](docs/evidence/checkpoint4-workflow-source.png) | Definição visual do fluxo, das condições, do retry e da publicação na DLQ. |
+| Assinatura Pub/Sub da DLQ | [`checkpoint4-pubsub-dlq.png`](docs/evidence/checkpoint4-pubsub-dlq.png) | Assinatura `orders-gcp-dlq-sub` criada e ativa para receber mensagens de falha. |
 
 O print da assinatura demonstra que a DLQ está ativa; o print da execução inválida demonstra a decisão de encaminhamento. Mensagens e telas de console devem ser capturadas sem e-mail, tokens, chaves ou dados de cobrança.
 
