@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node workflow/validate-state-machine.js",
+    "validate": "node workflow/validate-state-machine.js",
     "test": "node --test"
   },
   "engines": {

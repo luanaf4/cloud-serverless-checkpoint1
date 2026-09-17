@@ -1,8 +1,8 @@
-# Checkpoint 4 - Observabilidade e Migração Serverless
+# Checkpoint 5 - CI/CD, Observabilidade e Migração Serverless
 
-Este projeto preserva os Checkpoints 1, 2 e 3 e adiciona o Checkpoint 4 como uma migração controlada da arquitetura AWS para o Google Cloud. Os artefatos AWS continuam versionados para manter o histórico acadêmico, enquanto o Checkpoint 4 utiliza os serviços gerenciados do Google Cloud.
+Este projeto preserva integralmente os Checkpoints 1, 2, 3 e 4 e adiciona o Checkpoint 5, que automatiza a validação e o deploy da função serverless. Os artefatos AWS e GCP continuam versionados para manter o histórico acadêmico, enquanto o pipeline de CI/CD controla a integração e a implantação no Google Cloud.
 
-A implementação do Checkpoint 4 usa Google Cloud Workflows, Pub/Sub, Cloud Run Functions, Cloud Logging e Cloud Monitoring. A migração mantém os mesmos requisitos funcionais: validação, idempotência, retries, destino de mensagens mortas e observabilidade.
+A implementação do Checkpoint 4 usa Google Cloud Workflows, Pub/Sub, Cloud Run Functions, Cloud Logging e Cloud Monitoring. O Checkpoint 5 adiciona GitHub Actions e Workload Identity Federation, sem chaves JSON de service account. A solução mantém os requisitos funcionais de validação, idempotência, retries, destino de mensagens mortas e observabilidade.
 
 ## Evolução dos checkpoints
 
@@ -12,6 +12,7 @@ A implementação do Checkpoint 4 usa Google Cloud Workflows, Pub/Sub, Cloud Run
 | 2 | SNS `orders` → Lambda → CloudWatch | Processar pedidos de forma assíncrona e orientada a eventos |
 | 3 | Step Functions → Lambda / SNS DLQ | Orquestrar, validar, aplicar idempotência e tratar falhas |
 | 4 | Workflows → Cloud Run Function / Pub/Sub DLQ | Instrumentar logs, métricas e analisar performance/custo |
+| 5 | GitHub Actions → Workload Identity Federation → Cloud Run Function | Automatizar testes, validações e deploy seguro |
 
 O código HTTP original permanece em `checkpoint-1/`. O handler orientado a eventos do Checkpoint 2 permanece em `index.js`. A definição do Checkpoint 3 está em `workflow/state-machine.template.json`. O Checkpoint 4 está isolado em `gcp/`, sem remover ou substituir esses artefatos.
 
@@ -26,6 +27,8 @@ O código HTTP original permanece em `checkpoint-1/`. O handler orientado a even
 - Google Cloud Pub/Sub
 - Cloud Run Functions (Gen2)
 - Cloud Logging e Cloud Monitoring
+- GitHub Actions
+- Workload Identity Federation
 - Node.js 20 ou superior
 
 ## Arquitetura anterior — AWS (Checkpoints 2 e 3)
@@ -91,6 +94,8 @@ Depois de esgotar as tentativas, o bloco `Catch` encaminha o evento e os detalhe
 
 ```text
 .
+├── .github/workflows/
+│   └── ci-cd-gcp.yml
 ├── checkpoint-1/
 ├── workflow/
 │   ├── example-input.json
@@ -236,6 +241,39 @@ As seguintes otimizações são fundamentadas na arquitetura e devem ser validad
 3. **Ajuste de recursos e retenção:** usar escala mínima zero quando não houver tráfego, revisar memória/concorrência a partir das métricas de CPU e latência e manter somente logs necessários pelo período exigido. Isso reduz custo, mas pode aumentar cold start ou diminuir a capacidade de pico se os limites forem agressivos.
 
 O ambiente de demonstração usa uma função Gen2 com 256 MiB e limite de uma instância para manter o experimento controlado. Esses valores não são conclusões universais: devem ser recalibrados com carga real.
+
+## Checkpoint 5 — CI/CD para deploy automático
+
+O workflow [`ci-cd-gcp.yml`](.github/workflows/ci-cd-gcp.yml) automatiza a validação e o deploy da função Gen2. Em pull requests e pushes para outras branches, o pipeline executa somente a fase de verificação. Após um merge na `main`, a fase de deploy autentica no Google Cloud por Workload Identity Federation e publica `gcp/deploy/` com `gcloud functions deploy`.
+
+### Etapas automatizadas
+
+1. `npm ci` instala as dependências a partir do lockfile.
+2. `npm run validate` verifica a definição do workflow.
+3. `npm test` executa os testes dos Checkpoints 2, 3 e 4.
+4. Uma checagem falha se arquivos sensíveis conhecidos estiverem rastreados.
+5. O job de deploy publica a função Cloud Run Functions (Gen 2), configura o gatilho Pub/Sub, retry e limite de instâncias e verifica o estado final.
+
+### Configuração segura do GitHub Actions
+
+Nenhuma credencial é armazenada no repositório. Configure no GitHub, fora do código:
+
+- Secrets: `GCP_WORKLOAD_IDENTITY_PROVIDER` e `GCP_SERVICE_ACCOUNT`.
+- Variables: `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_FUNCTION_NAME` e `GCP_PUBSUB_TOPIC`.
+
+O provedor de identidade deve restringir o repositório e a branch `main`, e a conta de serviço deve ter somente as permissões necessárias para o deploy da função. Não use chave JSON de service account, token, `.env` ou URL privada como alternativa.
+
+### Fluxo de integração e publicação
+
+O workflow é executado em pull requests e em pushes para `main`. Pull requests executam a validação, os testes e a auditoria de arquivos sensíveis. O deploy é executado somente depois de um push em `main`, normalmente após o merge da alteração do Checkpoint 5.
+
+Assim, a branch `checkpoint5-ci-cd` serve para revisar o workflow, enquanto `main` é a branch de integração e publicação automática. Os Checkpoints 1–4 permanecem preservados durante o merge.
+
+### Evidência do pipeline
+
+As execuções do pipeline ficam disponíveis em [Actions — CI/CD Google Cloud](https://github.com/luanaf4/cloud-serverless-checkpoint1/actions/workflows/ci-cd-gcp.yml). A execução bem-sucedida deve apresentar os jobs `Validate and test` e `Deploy function` concluídos sem erros, comprovando as etapas de instalação, validação, testes, autenticação OIDC, deploy e verificação da função.
+
+O link direto para a execução específica e seu log textual devem ser utilizados na entrega do Canvas após o primeiro deploy automático bem-sucedido. A execução deve mostrar os passos `Validate and test`, `Deploy Cloud Run function (Gen 2)` e `Verify deployed function`, com o estado final `ACTIVE`. Nenhum log deve incluir secrets, tokens, chaves ou dados privados.
 
 ## Implantação na AWS
 
