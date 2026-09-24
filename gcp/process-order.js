@@ -11,7 +11,7 @@ function decodePubSubEvent(event) {
   if (typeof order.orderId !== 'string' || order.orderId.trim() === '') throw new Error('O pedido deve conter um orderId valido.');
   return order;
 }
-async function processOrderEvent(event, logger = createLogger(), aiProvider = process.env.NODE_ENV === 'test' ? mockEnrich : createAIProvider(), publishOutput) {
+async function processOrderEvent(event, logger = createLogger(), aiProvider = mockEnrich, publishOutput) {
   const correlationId = event?.message?.attributes?.correlationId ?? null;
   const order = decodePubSubEvent(event);
   const ai = await aiProvider(order);
