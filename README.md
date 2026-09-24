@@ -386,6 +386,10 @@ npm test
 
 Os testes cobrem contratos, validação da resposta da IA, chamada simulada do endpoint Vertex, publicação Pub/Sub, observabilidade, retry, idempotência e ausência de credenciais. A suíte atual possui 22 testes aprovados.
 
+### Decisões técnicas e custo
+
+Workflows permanece responsável por sequência, validação e retry; Pub/Sub desacopla os serviços; Cloud Run Function executa o consumidor; Vertex AI realiza somente o enriquecimento. Essa separação reduz acoplamento e permite testar a IA por uma interface isolada. O custo principal é a inferência do Vertex AI. Pub/Sub, Workflows, Cloud Run e Logging possuem franquias gratuitas, mas exigem billing habilitado e podem cobrar após os limites. Para a demonstração, use escala mínima zero, limite de instâncias, timeout, limite de tokens, retenção curta de logs e orçamento/alerta de billing.
+
 ### Licença
 
 Projeto desenvolvido para fins educacionais.
