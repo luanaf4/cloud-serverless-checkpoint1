@@ -259,7 +259,7 @@ O workflow [`ci-cd-gcp.yml`](.github/workflows/ci-cd-gcp.yml) automatiza a valid
 Nenhuma credencial é armazenada no repositório. Configure no GitHub, fora do código:
 
 - Secrets: `GCP_WORKLOAD_IDENTITY_PROVIDER` e `GCP_SERVICE_ACCOUNT`.
-- Variables: `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_FUNCTION_NAME` e `GCP_PUBSUB_TOPIC`.
+- Variables: `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_FUNCTION_NAME`, `GCP_PUBSUB_TOPIC` e `GCP_AI_OUTPUT_TOPIC`.
 
 O provedor de identidade deve restringir o repositório e a branch `main`, e a conta de serviço deve ter somente as permissões necessárias para o deploy da função. Não use chave JSON de service account, token, `.env` ou URL privada como alternativa.
 
@@ -322,6 +322,74 @@ Para validar a rota de falha, envie uma entrada sem `orderId`. A execução deve
 - A role da State Machine deve aplicar privilégio mínimo para Lambda e SNS.
 - Logs e screenshots não devem revelar credenciais ou tokens de sessão.
 
-## Licença
+## Projeto Final — arquitetura event-driven com Vertex AI
+
+O Projeto Final preserva os Checkpoints 1–5 e adiciona enriquecimento de pedidos com Vertex AI. A IA classifica o risco operacional, mas não executa ações irreversíveis. A decisão final continua sendo validada por código determinístico.
+
+```mermaid
+flowchart LR
+    A[OrderReceived] --> B[Workflows: validação e idempotência]
+    B --> C[Pub/Sub orders-gcp]
+    C --> D[Cloud Run Function Gen 2]
+    D --> E[Vertex AI Gemini]
+    E --> F[Validação do JSON da IA]
+    F --> G[Pub/Sub AI_OUTPUT_TOPIC]
+    F --> H[Retry / DLQ]
+    D --> I[Cloud Logging e Monitoring]
+```
+
+### Contrato de eventos
+
+Todos os eventos usam o envelope versionado criado em `gcp/event-contracts.js`:
+
+```json
+{
+  "eventId": "evt-...",
+  "eventType": "OrderAIEnriched",
+  "schemaVersion": "1.0",
+  "occurredAt": "2026-09-24T12:00:00.000Z",
+  "source": "orders.gcp",
+  "correlationId": "corr-...",
+  "idempotencyKey": "order-...",
+  "data": { "order": {}, "ai": {} }
+}
+```
+
+O resultado do modelo deve conter somente `riskLevel` (`low`, `medium` ou `high`), `decision` (`approve`, `review` ou `reject`), `reason` e `modelVersion`. Respostas inválidas são falhas do processamento e não são publicadas.
+
+### Vertex AI e configuração segura
+
+Em produção, `AI_PROVIDER=vertex` é obrigatório. A função chama o endpoint regional do Vertex AI Gemini e obtém um token temporário pelo metadata server da service account da Cloud Run Function. Não há chave JSON nem token permanente no código.
+
+O deploy precisa da permissão mínima `roles/aiplatform.user` para a service account da função e permissão de publicação no tópico de saída. Configure no GitHub Actions:
+
+- `GCP_WORKLOAD_IDENTITY_PROVIDER` e `GCP_SERVICE_ACCOUNT` como secrets;
+- `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_FUNCTION_NAME`, `GCP_PUBSUB_TOPIC` e `GCP_AI_OUTPUT_TOPIC` como variables.
+
+O modo `mock` existe somente para testes locais, onde a chamada externa não deve ser realizada. O deploy configurado pelo workflow sempre usa Vertex AI.
+
+### Retry, idempotência e falhas da IA
+
+- mensagens inválidas seguem para DLQ;
+- falhas transitórias usam retry com backoff;
+- timeout, erro HTTP ou JSON inválido do Vertex impedem a publicação do evento de saída;
+- `orderId`/`idempotencyKey` correlacionam reentregas;
+- logs registram metadados seguros, sem prompt completo ou dados privados.
+
+### Testes e reprodução local
+
+```bash
+npm ci
+npm run validate
+npm test
+```
+
+Os testes cobrem contratos, validação da resposta da IA, chamada simulada do endpoint Vertex, publicação Pub/Sub, observabilidade, retry, idempotência e ausência de credenciais. A suíte atual possui 22 testes aprovados.
+
+### Decisões técnicas e custo
+
+Workflows permanece responsável por sequência, validação e retry; Pub/Sub desacopla os serviços; Cloud Run Function executa o consumidor; Vertex AI realiza somente o enriquecimento. Essa separação reduz acoplamento e permite testar a IA por uma interface isolada. O custo principal é a inferência do Vertex AI. Pub/Sub, Workflows, Cloud Run e Logging possuem franquias gratuitas, mas exigem billing habilitado e podem cobrar após os limites. Para a demonstração, use escala mínima zero, limite de instâncias, timeout, limite de tokens, retenção curta de logs e orçamento/alerta de billing.
+
+### Licença
 
 Projeto desenvolvido para fins educacionais.
