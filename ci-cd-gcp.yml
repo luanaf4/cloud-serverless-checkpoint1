@@ -1,0 +1,104 @@
+name: CI/CD - Google Cloud Function
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Validate and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate workflow definition
+        run: npm run validate
+
+      - name: Run automated tests
+        run: npm test
+
+      - name: Check for forbidden sensitive files
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)(\.env($|\.)|.*\.(pem|key|p12|pfx)$|credentials\.json$|service-account.*\.json$)'; then
+            echo 'Sensitive files are tracked; refusing to continue.' >&2
+            exit 1
+          fi
+
+  deploy:
+    name: Deploy function
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      FUNCTION_NAME: ${{ vars.GCP_FUNCTION_NAME }}
+      PUBSUB_TOPIC: ${{ vars.GCP_PUBSUB_TOPIC }}
+      AI_OUTPUT_TOPIC: ${{ vars.GCP_AI_OUTPUT_TOPIC }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for required in PROJECT_ID REGION FUNCTION_NAME PUBSUB_TOPIC AI_OUTPUT_TOPIC; do
+            if [[ -z "${!required}" ]]; then
+              echo "Missing GitHub Actions variable: ${required}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Deploy Cloud Run function (Gen 2)
+        run: >-
+          gcloud functions deploy "${FUNCTION_NAME}"
+          --gen2
+          --project="${PROJECT_ID}"
+          --region="${REGION}"
+          --runtime=nodejs20
+          --source=gcp/deploy
+          --entry-point=handler
+          --trigger-topic="${PUBSUB_TOPIC}"
+          --set-env-vars="AI_PROVIDER=vertex,GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=${REGION},AI_OUTPUT_TOPIC=${AI_OUTPUT_TOPIC}"
+          --retry
+          --max-instances=1
+          --memory=256Mi
+          --quiet
+
+      - name: Verify deployed function
+        run: >-
+          gcloud functions describe "${FUNCTION_NAME}"
+          --gen2
+          --project="${PROJECT_ID}"
+          --region="${REGION}"
+          --format='value(state)'

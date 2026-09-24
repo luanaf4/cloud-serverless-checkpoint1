@@ -88,3 +88,16 @@ O workflow está em `.github/workflows/ci-cd-gcp.yml` e executa:
 - as variáveis públicas de projeto, região, função e tópico ficam configuradas no GitHub Actions;
 - o provedor OIDC é restrito ao repositório e à branch `main`;
 - as execuções ficam disponíveis em [GitHub Actions — CI/CD Google Cloud](https://github.com/luanaf4/cloud-serverless-checkpoint1/actions/workflows/ci-cd-gcp.yml).
+
+## Projeto Final — Vertex AI e evento de saída
+
+O Projeto Final mantém todos os diretórios anteriores e adiciona:
+
+- `gcp/ai.js`: contrato da resposta e adaptadores Vertex AI/teste;
+- `gcp/event-contracts.js`: envelope versionado dos eventos;
+- `gcp/pubsub.js`: publicação autenticada do evento enriquecido;
+- integração no consumidor `gcp/process-order.js`;
+- testes de contrato, Vertex e publicação Pub/Sub;
+- documentação do diagrama, decisões, segurança, custos e roteiro no `README.md`.
+
+O caminho implantado exige `AI_PROVIDER=vertex`. O token de acesso é temporário e obtido pela identidade da função; nenhum segredo é versionado. O mock é exclusivo dos testes locais.
