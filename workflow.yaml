@@ -1,4 +1,0 @@
-# Compatibility template for legacy tests
-# Runtime values are injected by deployment variables.
-ORDERS_TOPIC: ${ORDERS_TOPIC}
-DEAD_LETTER_TOPIC: ${DEAD_LETTER_TOPIC}
